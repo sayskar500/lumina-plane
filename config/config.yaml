@@ -1,0 +1,11 @@
+server:
+  port: 8000
+  timeout: 30s
+
+mongodb:
+  uri: "mongodb://mongodb:27017"
+  database: "lumina_plane"
+
+ai:
+  default_model: "llama3-8b-8192"
+  timeout: 30s

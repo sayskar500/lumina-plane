@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lumina-plane.fullname" . }}
+  labels:
+    {{- include "lumina-plane.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 8000
+      protocol: TCP
+  selector:
+    {{- include "lumina-plane.selectorLabels" . | nindent 4 }}

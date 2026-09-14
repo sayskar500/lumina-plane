@@ -1,0 +1,5 @@
+terraform/.terraform/
+terraform/terraform.tfvars
+config/secrets.yaml
+.env
+bin/

@@ -1,0 +1,23 @@
+replicaCount: 2
+
+image:
+  repository: lumina-plane-server
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 80
+
+env:
+  mongoUri: "mongodb://mongodb-service:27017"
+  groqApiKey: ""
+  infisicalKey: ""
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
