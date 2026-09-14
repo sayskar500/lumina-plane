@@ -11,6 +11,10 @@ terraform {
       source = "render-oss/render"
       version = "~> 1.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -46,6 +50,13 @@ variable "atlas_project_id" {
   type      = string
 }
 
+# Generated app-credential for the Atlas database user; stored in state
+# (gitignored) and injected into the Render service env.
+resource "random_password" "atlas_db" {
+  length  = 24
+  special = false # keeps the connection string URL-safe
+}
+
 locals {
   # Using a local variable to "flatten" the computed output from the module
   mongo_uri = module.mongodb_cluster.connection_string
@@ -54,6 +65,7 @@ locals {
 module "mongodb_cluster" {
   source      = "./modules/mongodb"
   project_id  = var.atlas_project_id
+  db_password = random_password.atlas_db.result
 }
 
 module "app_server" {
@@ -77,7 +89,8 @@ output "render_service_url" {
 }
 
 output "mongodb_connection_string" {
-  value = module.mongodb_cluster.connection_string
+  value     = module.mongodb_cluster.connection_string
+  sensitive = true
 }
 
 variable "groq_api_key" {
