@@ -15,13 +15,13 @@ resource "mongodbatlas_cluster" "cluster" {
   name       = "lumina-cluster"
   project_id = var.project_id
 
-  # Correct configuration for M0 (Free Tier)
+  # For M0 Free Tier
   provider_name               = "TENANT"
   backing_provider_name       = "AWS"
   provider_instance_size_name = "M0"
 
-  # Required by the API for M0 clusters
-  region_name = var.region
+  # The provider expects region configuration inside replication_specs for M0.
+  # We remove the top-level region_name which caused the error.
 
   replication_specs {
     num_shards = 1
