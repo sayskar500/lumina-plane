@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository, .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           ports:
             - containerPort: 8000
           env:
@@ -24,7 +24,9 @@ spec:
               value: {{ .Values.env.mongoUri | quote }}
             - name: GROQ_API_KEY
               value: {{ .Values.env.groqApiKey | quote }}
-            - name: INFISICAL_KEY
-              value: {{ .Values.env.infisicalKey | quote }}
+            - name: INFISICAL_CLIENT_ID
+              value: {{ .Values.env.infisicalClientId | quote }}
+            - name: INFISICAL_CLIENT_SECRET
+              value: {{ .Values.env.infisicalClientSecret | quote }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

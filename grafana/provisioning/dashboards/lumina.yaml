@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: lumina-plane
+    folder: Lumina-Plane
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

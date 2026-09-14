@@ -19,11 +19,14 @@ The server requires a `GROQ_API_KEY` to function.
 
 ### 3. 429 Too Many Requests
 - **Problem:** You have hit the Groq free tier rate limit.
-- **Solution:** Wait a few minutes or try a different model (e.g., switch from `llama3-70b` to `llama3-8b`).
+- **Solution:** Wait a few minutes or try a different model via `LUMINA_MODEL` (e.g., `openai/gpt-oss-20b`).
 
-### 4. 404 Model Not Found
-- **Problem:** The model name in `cmd/server/main.go` is incorrect.
-- **Solution:** Ensure you are using a valid model name like `llama3-8b-8192`.
+### 4. 400/404 Model Not Found
+- **Problem:** The configured model ID is no longer available. Groq rotates its catalog — older IDs like `llama3-8b-8192` are decommissioned.
+- **Solution:** List the currently available models and update `ai.default_model` in `config/config.yaml`:
+  ```bash
+  curl -s https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY" | jq -r '.data[].id'
+  ```
 
 ---
 

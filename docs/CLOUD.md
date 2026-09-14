@@ -2,11 +2,28 @@
 
 This guide explains how to deploy Lumina-Plane to a production-ready cloud environment using the "Free Stack" architecture.
 
+## ⚡ Automated Deployment (deploy.sh)
+
+`./deploy.sh` (from the repo root) automates steps 1–5 below:
+
+1. Discovers your Render workspace ID from the API.
+2. Runs `terraform apply` — creating the **Atlas M0 cluster first**, then the
+   **Render service with the real `MONGO_URI`** (no manual env var patching).
+3. Verifies the service's environment variables and prints the live URL.
+
+**Prerequisites:**
+- `terraform`, `jq`, `curl` installed.
+- All keys present in `terraform/terraform.tfvars` (gitignored — see the existing file for the expected variables).
+- ⚠️ **Render requires a payment method on file to create services via the API — even on the free plan.** Add one at [dashboard.render.com/billing](https://dashboard.render.com/billing) or the apply fails with HTTP 402.
+- ⚠️ The Atlas connection string Terraform outputs has **no database credentials**. Create a database user (with `readWrite` on `lumina_plane`) in the Atlas UI and embed `user:password@` in the URI if the app fails to authenticate.
+
+---
+
 ## 🏗️ The Architecture
 - **API Hosting:** [Render](https://render.com) (Free Tier)
 - **Database:** [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) (M0 Free Tier)
 - **Secrets Management:** [Infisical](https://infisical.com) (Developer Plan)
-- **CI/CD:** GitHub Actions
+- **CI/CD:** GitHub Actions (planned — not yet implemented)
 - **Infrastructure as Code:** Terraform
 
 ---

@@ -1,5 +1,9 @@
 terraform/.terraform/
 terraform/terraform.tfvars
+terraform/.apply.log
+# Terraform state can contain secrets (connection strings, keys) - never commit
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
 config/secrets.yaml
 .env
 bin/

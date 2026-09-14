@@ -7,5 +7,14 @@ mongodb:
   database: "lumina_plane"
 
 ai:
-  default_model: "llama3-8b-8192"
+  # Must be a valid Groq model ID (https://console.groq.com/docs/models).
+  default_model: "openai/gpt-oss-20b"
   timeout: 30s
+
+# Environment variables override these values:
+#   SERVER_PORT, MONGO_URI, OTEL_ENABLED,
+#   OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME
+observability:
+  otel_enabled: false
+  otel_endpoint: "localhost:4317"
+  service_name: "lumina-plane-server"

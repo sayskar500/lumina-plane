@@ -11,32 +11,42 @@ import (
 	"github.com/sayskar500/lumina-plane/internal/models"
 )
 
+// Provider abstracts an LLM backend. model may be empty, in which case the
+// provider's configured default model is used.
 type Provider interface {
-	Generate(ctx context.Context, prompt string) (*models.AIResponse, error)
+	Generate(ctx context.Context, prompt string, model string) (*models.AIResponse, error)
 	Name() string
 }
+
+const defaultGroqBaseURL = "https://api.groq.com/openai/v1"
 
 type GroqProvider struct {
 	APIKey string
 	Model  string
+	// BaseURL defaults to the public Groq API and can be overridden to point
+	// at a proxy or a test server.
+	BaseURL string
 }
 
 func NewGroqProvider(apiKey, model string) *GroqProvider {
-	return &GroqProvider{APIKey: apiKey, Model: model}
+	return &GroqProvider{APIKey: apiKey, Model: model, BaseURL: defaultGroqBaseURL}
 }
 
 func (g *GroqProvider) Name() string { return "Groq" }
 
-func (g *GroqProvider) Generate(ctx context.Context, prompt string) (*models.AIResponse, error) {
+func (g *GroqProvider) Generate(ctx context.Context, prompt string, model string) (*models.AIResponse, error) {
 	if g.APIKey == "" {
-		return nil, fmt.Errorf("Groq API Key is missing. Please set GROQ_API_KEY environment variable")
+		return nil, fmt.Errorf("Groq API key is not configured. Set GROQ_API_KEY or add groq_api_key to config/secrets.yaml")
+	}
+	if model == "" {
+		model = g.Model
 	}
 
 	start := time.Now()
-	url := "https://api.groq.com/openai/v1/chat/completions"
+	url := g.BaseURL + "/chat/completions"
 
 	requestBody := map[string]interface{}{
-		"model": g.Model,
+		"model": model,
 		"messages": []map[string]string{
 			{"role": "user", "content": prompt},
 		},
@@ -65,7 +75,7 @@ func (g *GroqProvider) Generate(ctx context.Context, prompt string) (*models.AIR
 	case http.StatusTooManyRequests:
 		return nil, fmt.Errorf("Groq API rate limit exceeded (429 Too Many Requests)")
 	case http.StatusNotFound:
-		return nil, fmt.Errorf("Groq model %s not found (404 Not Found)", g.Model)
+		return nil, fmt.Errorf("Groq model %s not found (404 Not Found)", model)
 	default:
 		return nil, fmt.Errorf("unexpected Groq API response: %d", resp.StatusCode)
 	}
@@ -92,7 +102,7 @@ func (g *GroqProvider) Generate(ctx context.Context, prompt string) (*models.AIR
 	return &models.AIResponse{
 		Text:       result.Choices[0].Message.Content,
 		TokensUsed: result.Usage.TotalTokens,
-		ModelUsed:  g.Model,
+		ModelUsed:  model,
 		LatencyMs:  time.Since(start).Milliseconds(),
 	}, nil
 }

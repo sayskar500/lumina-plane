@@ -12,7 +12,8 @@ service:
 env:
   mongoUri: "mongodb://mongodb-service:27017"
   groqApiKey: ""
-  infisicalKey: ""
+  infisicalClientId: ""
+  infisicalClientSecret: ""
 
 resources:
   limits:

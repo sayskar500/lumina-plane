@@ -3,6 +3,17 @@ receivers:
     protocols:
       grpc:
       http:
+  # Scrape the server's Prometheus endpoint so the Grafana pipeline
+  # (collector :8889 exporter -> Grafana datasource) receives metrics even
+  # though the app exports OTLP traces only.
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: "lumina-server"
+          scrape_interval: 5s
+          metrics_path: /metrics
+          static_configs:
+            - targets: ["server:8000"]
 
 processors:
   batch:
@@ -20,6 +31,6 @@ service:
       processors: [batch]
       exporters: [logging]
     metrics:
-      receivers: [otlp]
+      receivers: [otlp, prometheus]
       processors: [batch]
       exporters: [prometheus, logging]

@@ -6,7 +6,10 @@ COPY . .
 RUN go build -o server ./cmd/server/main.go
 
 FROM alpine:latest
-WORKDIR /root/
-COPY --from=builder /app/server .
+WORKDIR /app
+COPY --from=builder /app/server ./server
+# Bake in the default config; secrets must come from the environment or a
+# mounted config/secrets.yaml, never from the image itself.
+COPY config/config.yaml ./config/config.yaml
 EXPOSE 8000
 CMD ["./server"]

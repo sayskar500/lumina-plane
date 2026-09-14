@@ -12,12 +12,19 @@ echo "🏗️ Building Server Image..."
 podman build -t lumina-plane-server -f Dockerfile.server .
 
 # 3. Run Server
+# The image ships with the default config baked in; secrets come from the
+# environment (GROQ_API_KEY), which overrides config/secrets.yaml.
 echo "🌐 Starting AI Gateway Server..."
 podman run -d --name lumina-server \
   -p 8000:8000 \
   --link lumina-mongo:mongodb \
   -e MONGO_URI="mongodb://mongodb:27017" \
-  -e GROQ_API_KEY="your_key_here" \
+  -e GROQ_API_KEY="${GROQ_API_KEY:-}" \
   lumina-plane-server
+
+if [ -z "${GROQ_API_KEY:-}" ]; then
+    echo "⚠️  GROQ_API_KEY is not set - the server will start, but AI features will be disabled."
+    echo "    Export it and re-run, or pass it when starting the server."
+fi
 
 echo "✅ Local deployment complete! Try running: lumina health"

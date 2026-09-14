@@ -18,12 +18,17 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/sdk/resource"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
 
 type HealthResponse struct {
-	Status    string `json:"status"`
-	Database  string `json:"database"`
+	Status   string `json:"status"`
+	Database string `json:"database"`
 }
 
 var (
@@ -62,28 +67,63 @@ func init() {
 	prometheus.MustRegister(aiRequestsTotal)
 	prometheus.MustRegister(tokenUsage)
 	prometheus.MustRegister(requestLatency)
-	tracer = trace.NewNoopTracerProvider().Tracer("lumina-plane-server")
 }
 
-func initOTel(ctx context.Context) func(context.Context) {
-	return func(ctx context.Context) {}
+// initOTel wires the OpenTelemetry SDK to an OTLP/gRPC collector when enabled
+// in config. When disabled, it returns a no-op shutdown and the global tracer
+// provider stays a no-op, so tracing calls remain essentially free.
+func initOTel(ctx context.Context, cfg *config.Config) (func(context.Context), error) {
+	if !cfg.Observability.OTelEnabled || cfg.Observability.OTelEndpoint == "" {
+		return func(context.Context) {}, nil
+	}
+
+	exporter, err := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithEndpoint(cfg.Observability.OTelEndpoint),
+		otlptracegrpc.WithInsecure(), // internal collector traffic; add TLS when the collector requires it
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating OTLP trace exporter: %w", err)
+	}
+
+	tp := tracesdk.NewTracerProvider(
+		tracesdk.WithBatcher(exporter),
+		tracesdk.WithResource(resource.NewWithAttributes(
+			"",
+			attribute.String("service.name", cfg.Observability.ServiceName),
+		)),
+	)
+	otel.SetTracerProvider(tp)
+	return func(ctx context.Context) {
+		if err := tp.Shutdown(ctx); err != nil {
+			log.Printf("⚠️ OpenTelemetry shutdown: %v", err)
+		}
+	}, nil
 }
 
 func main() {
 	ctx := context.Background()
-	shutdown := initOTel(ctx)
-	defer shutdown(ctx)
 
-	// Load Configurations from YAML
 	var err error
 	appCfg, err = config.LoadConfig("config/config.yaml")
 	if err != nil {
 		log.Fatalf("❌ Failed to load config: %v", err)
 	}
 
+	shutdown, err := initOTel(ctx, appCfg)
+	if err != nil {
+		log.Printf("⚠️ OpenTelemetry disabled (%v)", err)
+	}
+	defer shutdown(context.Background())
+	tracer = otel.Tracer(appCfg.Observability.ServiceName)
+
 	appSecrets, err = config.LoadSecrets("config/secrets.yaml")
 	if err != nil {
-		log.Printf("⚠️ Warning: Could not load secrets.yaml: %v. AI features will be disabled.", err)
+		log.Printf("⚠️ Warning: Could not load secrets.yaml: %v", err)
+	}
+	if appSecrets.GroqAPIKey == "" {
+		log.Printf("⚠️ Warning: No Groq API key found (config/secrets.yaml or GROQ_API_KEY). AI features will be disabled.")
+	} else {
+		aiProvider = gateway.NewGroqProvider(appSecrets.GroqAPIKey, appCfg.AI.DefaultModel)
 	}
 
 	// MongoDB Connection with Retry Logic
@@ -107,10 +147,7 @@ func main() {
 		log.Fatal("❌ Could not connect to MongoDB after 5 attempts:", err)
 	}
 
-	store = db.NewStore(mongoClient)
-	if appSecrets != nil && appSecrets.GroqAPIKey != "" {
-		aiProvider = gateway.NewGroqProvider(appSecrets.GroqAPIKey, appCfg.AI.DefaultModel)
-	}
+	store = db.NewStore(mongoClient, appCfg.MongoDB.Database)
 
 	http.HandleFunc("/health", healthHandler)
 	http.HandleFunc("/ask", askHandler)
@@ -146,7 +183,7 @@ func askHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if aiProvider == nil {
-		http.Error(w, "AI Provider not configured. Check config/secrets.yaml", http.StatusInternalServerError)
+		http.Error(w, "AI Provider not configured. Check config/secrets.yaml or GROQ_API_KEY", http.StatusInternalServerError)
 		return
 	}
 
@@ -156,24 +193,31 @@ func askHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Honor the caller's requested model; fall back to the configured default.
+	model := req.Model
+	if model == "" {
+		model = appCfg.AI.DefaultModel
+	}
+
 	finalPrompt := req.Prompt
 	if prompt, err := store.GetActivePrompt(ctx, req.ProjectID); err == nil {
 		finalPrompt = fmt.Sprintf("%s\n\nUser Input: %s", prompt.Template, req.Prompt)
 	}
 
 	genCtx, genSpan := tracer.Start(ctx, "ai_generation")
-	resp, err := aiProvider.Generate(genCtx, finalPrompt)
+	genStart := time.Now()
+	resp, err := aiProvider.Generate(genCtx, finalPrompt, model)
 	genSpan.End()
 
 	if err != nil {
-		aiRequestsTotal.WithLabelValues(req.Model, "error").Inc()
+		aiRequestsTotal.WithLabelValues(model, "error").Inc()
 		http.Error(w, fmt.Sprintf("AI Generation failed: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	aiRequestsTotal.WithLabelValues(resp.ModelUsed, "success").Inc()
 	tokenUsage.WithLabelValues(resp.ModelUsed).Add(float64(resp.TokensUsed))
-	requestLatency.WithLabelValues(resp.ModelUsed).Observe(time.Since(time.Now()).Seconds())
+	requestLatency.WithLabelValues(resp.ModelUsed).Observe(time.Since(genStart).Seconds())
 
 	go func() {
 		logCtx, logCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -199,6 +243,11 @@ func promptHandler(w http.ResponseWriter, r *http.Request) {
 	var p models.Prompt
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if p.ProjectID == "" || p.Template == "" {
+		http.Error(w, "project_id and template are required", http.StatusBadRequest)
 		return
 	}
 

@@ -10,26 +10,33 @@ terraform {
 
 variable "app_name" { type = string }
 variable "repo_url" { type = string }
-variable "mongo_uri" { type = any }
+
+# Real Atlas connection string. Because the root module passes
+# module.mongodb_cluster.connection_string here, Terraform orders the Atlas
+# cluster creation first, so the value is known by the time the service is
+# created — no post-apply API patching needed.
+variable "mongo_uri" { type = string }
 variable "env_vars" { type = any }
 
 resource "render_web_service" "api" {
-  name      = var.app_name
-  region    = "oregon"
-  plan      = "starter"
+  name   = var.app_name
+  region = "oregon"
+  # NOTE: the render-oss provider documents only paid plans (starter, standard,
+  # pro, ...). The Render API also accepts "free" for web services, but creating
+  # ANY service via the API requires a payment method on file (HTTP 402).
+  plan = "free"
 
   runtime_source = {
     docker = {
-      repo_url = var.repo_url
-      branch   = "main"
+      repo_url        = var.repo_url
+      branch          = "main"
+      dockerfile_path = "Dockerfile.server" # repo has no root Dockerfile
     }
   }
 
-  # We set MONGO_URI to a placeholder to avoid the 'computed object' type error.
-  # We then merge the other environment variables (Groq, Infisical) which are plain strings.
   env_vars = merge(
     {
-      MONGO_URI = { value = "PENDING_ATLAS_URI" }
+      MONGO_URI = { value = var.mongo_uri }
     },
     {
       for k, v in var.env_vars : k => {

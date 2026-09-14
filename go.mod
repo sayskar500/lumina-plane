@@ -6,10 +6,8 @@ require (
 	github.com/prometheus/client_golang v1.24.1
 	go.mongodb.org/mongo-driver v1.17.10
 	go.opentelemetry.io/otel v1.46.0
-	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
 	go.opentelemetry.io/otel/sdk v1.46.0
-	go.opentelemetry.io/otel/sdk/metric v1.46.0
 	go.opentelemetry.io/otel/trace v1.46.0
 	gopkg.in/yaml.v3 v3.0.1
 )

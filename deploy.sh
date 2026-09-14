@@ -1,67 +1,91 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# Load environment variables from tfvars for the API key
-# We use grep/awk to extract the render_api_key from the .tfvars file
-RENDER_API_KEY=$(grep "render_api_key" terraform/terraform.tfvars | awk -F'"' '{print $2}')
+# Resolve the repo root from the script location so this works from any CWD.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TF_DIR="$SCRIPT_DIR/terraform"
 
+for tool in terraform jq curl; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "❌ Required tool '$tool' not found in PATH."; exit 1; }
+done
+
+[ -f "$TF_DIR/terraform.tfvars" ] || { echo "❌ $TF_DIR/terraform.tfvars not found. Copy the template from docs/CLOUD.md and fill in your keys."; exit 1; }
+
+RENDER_API_KEY=$(awk -F'"' '/^render_api_key/ {print $2}' "$TF_DIR/terraform.tfvars")
 if [ -z "$RENDER_API_KEY" ]; then
-    echo "❌ Error: render_api_key not found in terraform/terraform.tfvars"
+    echo "❌ render_api_key not found in terraform/terraform.tfvars"
     exit 1
 fi
 
 echo "🚀 Starting Lumina-Plane Cloud Deployment..."
 
-# 1. Auto-discover Render Owner ID
-echo "🔍 Discovering Render Owner ID..."
-OWNER_RESPONSE=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" https://api.render.com/v1/owners)
-OWNER_ID=$(echo "$OWNER_RESPONSE" | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4)
-
-if [ -z "$OWNER_ID" ]; then
-    echo "❌ Error: Could not discover Render Owner ID. Please check your API Key."
-    echo "API Response: $OWNER_RESPONSE"
+# 1. Auto-discover the Render workspace (owner) ID
+echo "🔍 Discovering Render workspace..."
+if ! OWNER_RESPONSE=$(curl -sfS -H "Authorization: Bearer $RENDER_API_KEY" -H "Accept: application/json" "https://api.render.com/v1/owners?limit=1"); then
+    echo "❌ Could not reach the Render API. Check your render_api_key and network."
     exit 1
 fi
+OWNER_ID=$(echo "$OWNER_RESPONSE" | jq -r '.[0].owner.id // empty')
+if [ -z "$OWNER_ID" ]; then
+    echo "❌ Could not discover Render workspace ID. API response:"
+    echo "$OWNER_RESPONSE"
+    exit 1
+fi
+echo "✅ Discovered workspace: $OWNER_ID"
 
-echo "✅ Discovered Owner ID: $OWNER_ID"
-
-# 2. Export variables for Terraform
-# Terraform picks up TF_VAR_name as the value for var.name
+# 2. Export variables for Terraform (TF_VAR_<name> maps to var.<name>)
 export TF_VAR_render_api_key="$RENDER_API_KEY"
 export TF_VAR_render_owner_id="$OWNER_ID"
 
-# 3. Provision Infrastructure
-echo "📦 Provisioning Cloud Infrastructure..."
-cd terraform
-terraform init
-terraform apply -auto-approve
-
-# 4. Extract Outputs
-echo "🔍 Extracting deployment metadata..."
-SERVICE_ID=$(terraform output -raw render_service_id)
-MONGO_URI=$(terraform output -raw mongodb_connection_string)
-SERVICE_URL=$(terraform output -raw render_service_url)
-
-if [ -z "$SERVICE_ID" ] || [ -z "$MONGO_URI" ]; then
-    echo "❌ Error: Failed to extract service ID or MongoDB URI."
+# 3. Provision infrastructure.
+#    Order is enforced by Terraform: the Atlas cluster is created first, and the
+#    Render service is created with the real MONGO_URI (no post-apply patching).
+echo "📦 Provisioning cloud infrastructure (Atlas M0 can take 5-10 minutes)..."
+APPLY_LOG="$TF_DIR/.apply.log"
+terraform -chdir="$TF_DIR" init -input=false >/dev/null
+if ! terraform -chdir="$TF_DIR" apply -auto-approve -input=false 2>&1 | tee "$APPLY_LOG"; then
+    echo ""
+    echo "❌ Terraform apply failed."
+    if grep -q "Payment information" "$APPLY_LOG"; then
+        echo "   → Render requires a payment method on file to create services via the"
+        echo "     API — even on the free plan. Add one at https://dashboard.render.com/billing"
+        echo "     then re-run this script."
+    fi
+    if grep -qi "unauthorized\|401" "$APPLY_LOG"; then
+        echo "   → A cloud API key appears to be invalid or lacks permissions."
+    fi
     exit 1
 fi
 
-# 5. Patch the Render Service with the actual MongoDB URI
-echo "🔗 Linking MongoDB Atlas to Render Service..."
-curl -X PATCH "https://api.render.com/v1/services/$SERVICE_ID" \
-     -H "Authorization: Bearer $RENDER_API_KEY" \
-     -H "Content-Type: application/json" \
-     -d "{
-       \"env_vars\": {
-         \"MONGO_URI\": { \"value\": \"$MONGO_URI\" }
-       }
-     }"
+# 4. Extract outputs
+echo "🔍 Extracting deployment metadata..."
+SERVICE_ID=$(terraform -chdir="$TF_DIR" output -raw render_service_id)
+SERVICE_URL=$(terraform -chdir="$TF_DIR" output -raw render_service_url)
+
+if [ -z "$SERVICE_ID" ] || [ -z "$SERVICE_URL" ]; then
+    echo "❌ Failed to extract service ID or URL from Terraform outputs."
+    exit 1
+fi
+
+# 5. Verify the Render service received its environment variables (keys only —
+#    values may contain secrets). The service's first build/deploy starts
+#    automatically on creation.
+echo "🔑 Verifying service environment variables..."
+ENV_KEYS=$(curl -sfS -H "Authorization: Bearer $RENDER_API_KEY" -H "Accept: application/json" \
+    "https://api.render.com/v1/services/$SERVICE_ID/env-vars" | jq -r 'if type=="array" then [.[].envVar.key] | join(", ") else . end') || ENV_KEYS=""
+if echo "$ENV_KEYS" | grep -q "MONGO_URI"; then
+    echo "✅ MONGO_URI is set on the service (along with: ${ENV_KEYS})"
+else
+    echo "⚠️  Could not confirm MONGO_URI on the service. Keys found: ${ENV_KEYS:-none}"
+fi
 
 echo ""
 echo "✅ Deployment Complete!"
 echo "--------------------------------------------------"
 echo "🌐 Live URL: $SERVICE_URL"
-echo "🗄️ MongoDB URI: $MONGO_URI"
+echo "🗄️ MongoDB: managed via Terraform (mongodb_connection_string output; not printed — may contain credentials)"
 echo "--------------------------------------------------"
-echo "You can now test the platform using: ./bin/lumina ask \"Hello Cloud!\""
+echo "Try it:"
+echo "  make build"
+echo "  LUMINA_SERVER_URL=\"$SERVICE_URL\" ./bin/lumina health"
+echo "  LUMINA_SERVER_URL=\"$SERVICE_URL\" ./bin/lumina ask \"Hello Cloud!\""
