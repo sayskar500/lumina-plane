@@ -43,7 +43,18 @@ export TF_VAR_render_owner_id="$OWNER_ID"
 echo "📦 Provisioning cloud infrastructure (Atlas M0 can take 5-10 minutes)..."
 APPLY_LOG="$TF_DIR/.apply.log"
 terraform -chdir="$TF_DIR" init -input=false >/dev/null
+APPLY_OK=1
 if ! terraform -chdir="$TF_DIR" apply -auto-approve -input=false 2>&1 | tee "$APPLY_LOG"; then
+    APPLY_OK=0
+fi
+
+# The render provider cannot update free-tier services in place (it sends a
+# maintenance-mode field the API rejects). Recreating the service (same name
+# and URL, no data loss) is the supported workaround.
+if [ "$APPLY_OK" -eq 0 ] && grep -q "maintenance mode can only be configured for non-free tier" "$APPLY_LOG"; then
+    echo "⚠️  Free-tier services cannot be updated in place — recreating the Render service..."
+    terraform -chdir="$TF_DIR" apply -replace="module.app_server.render_web_service.api" -auto-approve -input=false 2>&1 | tee "$APPLY_LOG" || APPLY_OK=0
+elif [ "$APPLY_OK" -eq 0 ]; then
     echo ""
     echo "❌ Terraform apply failed."
     if grep -q "Payment information" "$APPLY_LOG"; then
