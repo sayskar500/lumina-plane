@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars (gitignored) or export TF_VAR_groq_api_key.
+# The Groq key is shared with the Render deployment (terraform/terraform.tfvars).
+groq_api_key = "gsk_your_actual_key_here"
+
+# Optional overrides:
+# location                = "centralindia"
+# resource_group_name     = "lumina-plane-rg"
+# container_image         = "ghcr.io/sayskar500/lumina-plane:latest"
+# container_registry_url  = "https://ghcr.io"

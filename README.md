@@ -15,13 +15,14 @@ Lumina-Plane is an AI-native Internal Developer Platform (IDP) designed to showc
 - **Languages:** Go (CLI & Server), Bash.
 - **Backend:** Go (`net/http`), MongoDB (Managed Atlas).
 - **AI Intelligence:** Groq / Google Gemini.
-- **Infra:** Terraform, Render, Podman, Kubernetes (Helm).
+- **Infra:** Terraform, Render, Azure (App Service F1 + Cosmos DB free tier), Podman, Kubernetes (Helm).
 - **Observability:** Prometheus, Grafana.
 
 ## 📖 Documentation
 Detailed guides are available in the `/docs` directory:
 - [**Local Development Guide**](docs/LOCAL.md) - How to run the platform on your machine.
-- [**Cloud Deployment Guide**](docs/CLOUD.md) - How to deploy to the free cloud stack.
+- [**Cloud Deployment Guide**](docs/CLOUD.md) - How to deploy to the free cloud stack (Render + Atlas).
+- [**Azure Deployment Guide**](docs/AZURE.md) - Free Azure deployment, **no credit card** (App Service F1 + Cosmos DB free tier).
 
 ## 🚀 Quick Start (Local)
 1. Start the infrastructure:

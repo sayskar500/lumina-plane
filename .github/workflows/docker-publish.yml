@@ -1,0 +1,68 @@
+name: Build & Publish Container
+
+# Builds the AI Gateway image and publishes it to GHCR (free for public
+# repos). After the image push, it triggers the App Service continuous
+# deployment webhook when AZURE_CD_WEBHOOK_URL is configured (see
+# docs/AZURE.md step 5).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "Dockerfile.server"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/docker-publish.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.server
+          platforms: linux/amd64 # App Service F1 runs amd64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trigger App Service redeploy (if webhook configured)
+        env:
+          AZURE_CD_WEBHOOK_URL: ${{ secrets.AZURE_CD_WEBHOOK_URL }}
+        run: |
+          if [ -z "${AZURE_CD_WEBHOOK_URL:-}" ]; then
+            echo "ℹ️ AZURE_CD_WEBHOOK_URL not set — skipping auto-redeploy"
+            exit 0
+          fi
+          curl -sfS -X POST "$AZURE_CD_WEBHOOK_URL" \
+            && echo "✅ Redeploy triggered" \
+            || echo "⚠️ Webhook call failed — redeploy manually via az webapp restart"

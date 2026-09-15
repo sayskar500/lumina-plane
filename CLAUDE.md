@@ -14,7 +14,8 @@ engineering stack (IaC, containers, Helm, observability).
 - **Backend:** Go `net/http` (`cmd/server`) — the AI Gateway
 - **Database:** MongoDB (`prompts`, `token_logs`, `counters` collections)
 - **AI:** Groq (OpenAI-compatible API) behind the `internal/gateway.Provider` interface
-- **Infra:** Podman/Docker Compose, Terraform (MongoDB Atlas + Render), Helm chart
+- **Infra:** Podman/Docker Compose, Terraform (MongoDB Atlas + Render **and Azure: App Service F1 + Cosmos DB free tier**), Helm chart
+- **CI/CD:** GitHub Actions → GHCR → App Service (see docs/AZURE.md)
 - **Observability:** Prometheus `/metrics`, OpenTelemetry traces → OTel Collector → Grafana
 
 > Note: an early plan called for Python/FastAPI and gRPC. The implementation is
@@ -51,6 +52,7 @@ curl -s https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_AP
 - `make build` / `make up` / `make down` / `make test`
 - `./bin/lumina health | ask "..." | prompt set "<project>" "<template>"`
 - Full walkthrough: [docs/LOCAL.md](docs/LOCAL.md)
+- Cloud: [deploy.sh](deploy.sh) (Render/Atlas) · [scripts/deploy-azure.sh](scripts/deploy-azure.sh) (Azure, no card)
 
 ## Development Guidelines
 - Professional Go style: explicit error handling, thin HTTP handlers, context propagation.
