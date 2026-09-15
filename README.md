@@ -22,7 +22,8 @@ Lumina-Plane is an AI-native Internal Developer Platform (IDP) designed to showc
 Detailed guides are available in the `/docs` directory:
 - [**Local Development Guide**](docs/LOCAL.md) - How to run the platform on your machine.
 - [**Cloud Deployment Guide**](docs/CLOUD.md) - How to deploy to the free cloud stack (Render + Atlas).
-- [**Azure Deployment Guide**](docs/AZURE.md) - Free Azure deployment, **no credit card** (App Service F1 + Cosmos DB free tier).
+- [**Hugging Face Guide**](docs/HUGGINGFACE.md) - Free container hosting, **no credit card ever** (Docker Space).
+- [**Azure Deployment Guide**](docs/AZURE.md) - Free-tier Azure deployment (App Service F1 + Cosmos DB; standard Azure account needs a card for verification only).
 
 ## 🚀 Quick Start (Local)
 1. Start the infrastructure:

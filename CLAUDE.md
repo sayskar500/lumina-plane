@@ -52,7 +52,7 @@ curl -s https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_AP
 - `make build` / `make up` / `make down` / `make test`
 - `./bin/lumina health | ask "..." | prompt set "<project>" "<template>"`
 - Full walkthrough: [docs/LOCAL.md](docs/LOCAL.md)
-- Cloud: [deploy.sh](deploy.sh) (Render/Atlas) · [scripts/deploy-azure.sh](scripts/deploy-azure.sh) (Azure, no card)
+- **Cloud:** [deploy.sh](deploy.sh) (Render/Atlas) · [scripts/deploy-azure.sh](scripts/deploy-azure.sh) (Azure) · [HF Space](docs/HUGGINGFACE.md) (no card ever)
 
 ## Development Guidelines
 - Professional Go style: explicit error handling, thin HTTP handlers, context propagation.

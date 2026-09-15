@@ -1,4 +1,12 @@
-# ☁️ Azure Deployment Guide (Free — No Credit Card)
+# ☁️ Azure Deployment Guide (Free Tiers)
+
+> **No-credit-card note:** Azure (and AWS/GCP) require a card at signup for
+> identity verification — even for free accounts. If that's a hard blocker,
+> use [docs/HUGGINGFACE.md](HUGGINGFACE.md) instead (truly no card, ever).
+> Nuance: the standard Azure free account includes a hard **spending limit** —
+> services stop when the credit ends, and you cannot be charged unless you
+> explicitly remove the limit. The card is never charged on these free tiers.
+> Azure for Students ($100, no card) applies only to verified students.
 
 Lumina-Plane deploys to **Azure free tiers** using Infrastructure as Code:
 
@@ -13,18 +21,16 @@ Lumina-Plane deploys to **Azure free tiers** using Infrastructure as Code:
 allocation is a shared-throughput database at exactly the free 1000 RU/s, and
 App Service F1 is a free SKU.
 
-## ⚠️ About the "no credit card" requirement
+## ⚠️ About accounts and cards
 
-- **AWS requires a card** at signup (identity verification), even for its free
-  plan — so it does not satisfy a no-card constraint.
-- **Azure** requires a card for the *standard free account*, **but not** for:
-  - **Azure for Students** — $100 credit + free services, verified with a
-    school email, **no card**: https://azure.microsoft.com/free/students
-  - **GitHub Student Developer Pack** → includes the Azure student offer:
-    https://education.github.com/pack
-- If you are not a student, the standard Azure free account needs a
-  credit/debit card purely for identity verification ($0 charge unless you
-  explicitly upgrade).
+- **Azure for Students** ($100 credit, no card) requires verified student
+  status: https://azure.microsoft.com/free/students
+- **Standard Azure free account**: needs a credit/debit card for identity
+  verification only — it includes a hard **spending limit**, so nothing is
+  charged unless you explicitly remove the limit and upgrade.
+- **AWS**: card required at signup, even for the new Free Plan (which cannot
+  incur charges — the account auto-closes when credits run out).
+- Truly card-free alternative: [docs/HUGGINGFACE.md](HUGGINGFACE.md).
 
 ## 🚀 Step-by-step
 
